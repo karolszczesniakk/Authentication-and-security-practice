@@ -2,7 +2,8 @@ require('dotenv').config()
 const express = require("express");
 const bodyParser = require("body-parser");
 const mongoose = require("mongoose");
-const md5 = require("md5");
+const bcrypt = require('bcrypt');
+const saltRounds = 10;
 
 const ejs = require("ejs");
 
@@ -19,10 +20,7 @@ const userSchema = new mongoose.Schema({
     password: String
 });
 
-
-
 const User = new mongoose.model("User",userSchema);
-
 
 app.route("/register")
 
@@ -31,19 +29,20 @@ app.route("/register")
 })
 
 .post(function(req,res){
-    const newUser = new User({
-        email: req.body.username,
-        password: md5(req.body.password)
-    });
-
-    newUser.save(function(err){
-        if(err){
-            console.log(err);
-        } else {
-            res.render("secrets");
-        }
-    });
-    
+    bcrypt.hash(req.body.password, saltRounds, function(err,hash){
+        const newUser = new User({
+            email: req.body.username,
+            password: hash
+        });
+        newUser.save(function(err){
+            if(err){
+                console.log(err);       
+            } else {
+                console.log("Registered new user");
+                res.render("secrets"); 
+            }
+        });     
+    })  
 });
 
 app.route("/login")
@@ -53,19 +52,28 @@ app.route("/login")
 })
 
 .post(function(req,res){
-    User.findOne({email: req.body.username},function(err,foundUser){
-        if(!err){
-            if(foundUser && foundUser.password === md5(req.body.password)){
-                res.render("secrets");   
+    const userName = req.body.username;
+    const password = req.body.password;
+
+
+    User.findOne({email: userName},function(err,foundUser){
+        if(err){
+            console.log(err);
+        } else {
+            if(foundUser){
+                bcrypt.compare(password, foundUser.password, function(error,result){
+                    if(result === true){
+                        res.render("secrets");   
+                    }
+                }); 
             } else {
                 console.log("Didnt find user")
                 res.redirect("/login");
             }
-        } else {
-            console.log(err);
+            
         } 
     })
-})
+});
 
 app.get("/",function(req,res){
     res.render("home");
